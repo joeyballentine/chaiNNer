@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import functools
 import os
+import traceback
 import uuid
+from multiprocessing import Process, Queue
 from typing import Any, Dict
 
 from sanic.log import logger
@@ -19,8 +21,7 @@ class Executor:
     def __init__(
         self,
         nodes: Dict,
-        loop,
-        queue: asyncio.Queue,
+        event_queue: Queue,
         existing_cache: Dict,
         parent_executor=None,
     ):
@@ -28,15 +29,13 @@ class Executor:
         self.nodes = nodes
         self.output_cache = existing_cache
 
-        self.process_task = None
         self.killed = False
         self.paused = False
         self.resumed = False
 
-        self.loop = loop
-        self.queue = queue
+        self.event_queue = event_queue
 
-        self.parent_executor = parent_executor
+        # self.parent_executor = parent_executor
 
     async def process(self, node: Dict) -> Any:
         """Process a single node"""
@@ -45,8 +44,8 @@ class Executor:
         logger.debug(f"Running node {node_id}")
         # Return cached output value from an already-run node if that cached output exists
         if self.output_cache.get(node_id, None) is not None:
-            finish_data = await self.check()
-            await self.queue.put({"event": "node-finish", "data": finish_data})
+            finish_data = self.check()
+            self.event_queue.put_nowait({"event": "node-finish", "data": finish_data})
             return self.output_cache[node_id]
 
         inputs = []
@@ -109,31 +108,35 @@ class Executor:
                             self.output_cache[next_node_id] = output
                             # Add this to the sub node dict as well so it knows it exists
                             sub_nodes[next_node_id] = self.nodes[next_node_id]
-            output = await node_instance.run(
-                *enforced_inputs,
-                nodes=sub_nodes,  # type: ignore
-                loop=self.loop,  # type: ignore
-                queue=self.queue,  # type: ignore
-                external_cache=self.output_cache,  # type: ignore
-                iterator_id=node["id"],  # type: ignore
-                parent_executor=self,  # type: ignore
-                percent=node["percent"] if self.resumed else 0,  # type: ignore
-            )
+            # output = asyncio.run(
+            #     node_instance.run(
+            #         *enforced_inputs,
+            #         nodes=sub_nodes,  # type: ignore
+            #         loop=self.loop,  # type: ignore
+            #         queue=self.queue,  # type: ignore
+            #         external_cache=self.output_cache,  # type: ignore
+            #         iterator_id=node["id"],  # type: ignore
+            #         parent_executor=self,  # type: ignore
+            #         percent=node["percent"] if self.resumed else 0,  # type: ignore
+            #     )
+            # )
             # Cache the output of the node
-            self.output_cache[node_id] = output
-            finish_data = await self.check()
-            await self.queue.put({"event": "node-finish", "data": finish_data})
-            del node_instance, finish_data
-            return output
+            # self.output_cache[node_id] = output
+            # finish_data = await self.check()
+            # await self.queue.put({"event": "node-finish", "data": finish_data})
+            # del node_instance
+            # return output
         else:
             # Run the node and pass in inputs as args
+            # output = node_instance.run(*enforced_inputs)
+            loop = asyncio.get_event_loop()
             run_func = functools.partial(node_instance.run, *enforced_inputs)
-            output = await self.loop.run_in_executor(None, run_func)
+            output = await loop.run_in_executor(None, run_func)
             # Cache the output of the node
             self.output_cache[node_id] = output
-            finish_data = await self.check()
-            await self.queue.put({"event": "node-finish", "data": finish_data})
-            del node_instance, run_func, finish_data
+            finish_data = self.check()
+            self.event_queue.put_nowait({"event": "node-finish", "data": finish_data})
+            del node_instance
             return output
 
     async def process_nodes(self):
@@ -151,32 +154,48 @@ class Executor:
                 break
             await self.process(output_node)
 
-    async def run(self):
+    def run(self):
         """Run the executor"""
         logger.debug(f"Running executor {self.execution_id}")
-        await self.process_nodes()
+        try:
+            asyncio.run(self.process_nodes())
+            self.event_queue.put_nowait(
+                {"event": "finish", "data": {"message": "Successfully ran nodes!"}}
+            )
+        except Exception as exception:
+            logger.error(exception, exc_info=True)
+            logger.error(traceback.format_exc())
+            self.event_queue.put_nowait(
+                {
+                    "event": "execution-error",
+                    "data": {
+                        "message": "Error running nodes!",
+                        "exception": str(exception),
+                    },
+                }
+            )
 
-    async def resume(self):
+    def resume(self):
         """Run the executor"""
         logger.info(f"Resuming executor {self.execution_id}")
         self.paused = False
         self.resumed = True
         os.environ["killed"] = "False"
-        await self.process_nodes()
+        asyncio.run(self.process_nodes())
 
-    async def check(self):
+    def check(self):
         """Check the executor"""
         cached_ids = [key for key in self.output_cache.keys()]
         return {
             "finished": cached_ids,
         }
 
-    async def pause(self):
+    def pause(self):
         """Pause the executor"""
         logger.info(f"Pausing executor {self.execution_id}")
         self.paused = True
 
-    async def kill(self):
+    def kill(self):
         """Kill the executor"""
         logger.info(f"Killing executor {self.execution_id}")
         self.killed = True
@@ -195,6 +214,6 @@ class Executor:
         return (
             self.killed
             or self.paused
-            or (self.parent_executor is not None and self.parent_executor.is_killed())
-            or (self.parent_executor is not None and self.parent_executor.is_paused())
+            # or (self.parent_executor is not None and self.parent_executor.is_killed())
+            # or (self.parent_executor is not None and self.parent_executor.is_paused())
         )

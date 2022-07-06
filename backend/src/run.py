@@ -2,6 +2,7 @@ import asyncio
 import functools
 import gc
 import logging
+from multiprocessing import Process, Queue
 import os
 import platform
 import sys
@@ -71,6 +72,7 @@ app = Sanic("chaiNNer")
 CORS(app)
 app.ctx.executor = None
 app.ctx.cache = dict()
+app.ctx.p = None
 
 app.config.REQUEST_TIMEOUT = sys.maxsize
 app.config.RESPONSE_TIMEOUT = sys.maxsize
@@ -130,51 +132,56 @@ async def run(request: Request):
     """Runs the provided nodes"""
     # headers = {"Cache-Control": "no-cache"}
     # await request.respond(response="Run request accepted", status=200, headers=headers)
-    queue = request.app.ctx.queue
+    event_queue = request.app.ctx.queue
 
-    try:
-        os.environ["killed"] = "False"
-        if request.app.ctx.executor:
-            logger.info("Resuming existing executor...")
-            executor = request.app.ctx.executor
-            await executor.resume()
-        else:
-            logger.info("Running new executor...")
-            full_data = dict(request.json)
-            logger.info(full_data)
-            nodes_list = full_data["data"]
-            os.environ["device"] = "cpu" if full_data["isCpu"] else "cuda"
-            os.environ["isFp16"] = str(full_data["isFp16"])
-            logger.info(f"Using device: {os.environ['device']}")
-            executor = Executor(nodes_list, app.loop, queue, app.ctx.cache.copy())
-            request.app.ctx.executor = executor
-            await executor.run()
-        if not executor.paused:
-            del request.app.ctx.executor
-            request.app.ctx.executor = None
-        if torch is not None:
-            torch.cuda.empty_cache()
-        gc.collect()
-        await queue.put(
-            {"event": "finish", "data": {"message": "Successfully ran nodes!"}}
-        )
-        return json({"message": "Successfully ran nodes!"}, status=200)
-    except Exception as exception:
-        logger.error(exception, exc_info=True)
-        request.app.ctx.executor = None
-        logger.error(traceback.format_exc())
-        await queue.put(
-            {
-                "event": "execution-error",
-                "data": {
-                    "message": "Error running nodes!",
-                    "exception": str(exception),
-                },
-            }
-        )
-        return json(
-            {"message": "Error running nodes!", "exception": str(exception)}, status=500
-        )
+    # try:
+    os.environ["killed"] = "False"
+    if request.app.ctx.executor:
+        logger.info("Resuming existing executor...")
+        executor = request.app.ctx.executor
+        executor.resume()
+    else:
+        logger.info("Running new executor...")
+        full_data = dict(request.json)
+        logger.info(full_data)
+        nodes_list = full_data["data"]
+        os.environ["device"] = "cpu" if full_data["isCpu"] else "cuda"
+        os.environ["isFp16"] = str(full_data["isFp16"])
+        logger.info(f"Using device: {os.environ['device']}")
+        executor = Executor(nodes_list, event_queue, request.app.ctx.cache.copy())
+        request.app.ctx.executor = executor
+        # err_queue = Queue()
+        request.app.ctx.p = Process(target=executor.run, args=())
+        request.app.ctx.p.start()
+        # app.ctx.p.join()
+        # if err_queue.qsize() > 0:
+        #     raise Exception(err_queue.get())
+        # if not executor.paused:
+        #     del request.app.ctx.executor
+        #     request.app.ctx.executor = None
+        # if torch is not None:
+        #     torch.cuda.empty_cache()
+        # gc.collect()
+        # event_queue.put(
+        #     {"event": "finish", "data": {"message": "Successfully ran nodes!"}}
+        # )
+    return json({"message": "Successfully ran nodes!"}, status=200)
+    # except Exception as exception:
+    #     logger.error(exception, exc_info=True)
+    #     request.app.ctx.executor = None
+    #     logger.error(traceback.format_exc())
+    #     event_queue.put(
+    #         {
+    #             "event": "execution-error",
+    #             "data": {
+    #                 "message": "Error running nodes!",
+    #                 "exception": str(exception),
+    #             },
+    #         }
+    #     )
+    #     return json(
+    #         {"message": "Error running nodes!", "exception": str(exception)}, status=500
+    #     )
 
 
 @app.route("/run/individual", methods=["POST"])
@@ -192,7 +199,7 @@ async def run_individual(request: Request):
         run_func = functools.partial(node_instance.run, *full_data["inputs"])
         output = await app.loop.run_in_executor(None, run_func)
         # Cache the output of the node
-        app.ctx.cache[full_data["id"]] = output
+        request.app.ctx.cache[full_data["id"]] = output
         extra_data = node_instance.get_extra_data()
         del node_instance, run_func
         return json({"success": True, "data": extra_data})
@@ -203,20 +210,39 @@ async def run_individual(request: Request):
 
 @app.get("/sse")
 async def sse(request: Request):
+    print("sse")
     headers = {"Cache-Control": "no-cache"}
     response = await request.respond(headers=headers, content_type="text/event-stream")
     while True:
-        message = await request.app.ctx.queue.get()
-        if not message:
+        # Check for executor life
+        if request.app.ctx.p is not None:
+            if not request.app.ctx.p.is_alive():
+                if (
+                    request.app.ctx.executor is not None
+                    and not request.app.ctx.executor.paused
+                ):
+                    del request.app.ctx.executor
+                    request.app.ctx.p = None
+                    request.app.ctx.executor = None
+                if torch is not None:
+                    torch.cuda.empty_cache()
+                gc.collect()
+
+        # Handle messages
+        try:
+            message = request.app.ctx.queue.get_nowait()
+            if not message:
+                break
+            if response is not None:
+                await response.send(f"event: {message['event']}\n")
+                await response.send(f"data: {stringify(message['data'])}\n\n")
+        except:
             break
-        if response is not None:
-            await response.send(f"event: {message['event']}\n")
-            await response.send(f"data: {stringify(message['data'])}\n\n")
 
 
 @app.after_server_start
 async def setup_queue(sanic_app: Sanic, _):
-    sanic_app.ctx.queue = asyncio.Queue()
+    sanic_app.ctx.queue = Queue()
 
 
 @app.route("/pause", methods=["POST"])
@@ -243,7 +269,7 @@ async def kill(request):
     try:
         if request.app.ctx.executor:
             logger.info("Executor found. Attempting to kill...")
-            await request.app.ctx.executor.kill()
+            request.app.ctx.p.terminate()
             request.app.ctx.executor = None
             return json({"message": "Successfully killed execution!"}, status=200)
         logger.info("No executor to kill")
