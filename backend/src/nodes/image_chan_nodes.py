@@ -169,6 +169,7 @@ class ChannelMergeRGBANode(NodeBase):
         self.name = "Merge Channels"
         self.icon = "MdCallMerge"
         self.sub = "All"
+        self.deprecated = True
 
     def run(
         self,

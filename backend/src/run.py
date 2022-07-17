@@ -118,6 +118,7 @@ async def nodes(_):
             "subcategory": node_object.get_sub_category(),
             "nodeType": node_object.get_type(),
             "hasSideEffects": node_object.get_has_side_effects(),
+            "deprecated": node_object.is_deprecated(),
         }
         if node_object.get_type() == "iterator":
             node_dict["defaultNodes"] = node_object.get_default_nodes()  # type: ignore

@@ -26,6 +26,7 @@ class NodeBase(metaclass=ABCMeta):
         self.type = "regularNode"
 
         self.side_effects = False
+        self.deprecated = False
 
     @abstractmethod
     def run(self) -> Any:
@@ -66,6 +67,9 @@ class NodeBase(metaclass=ABCMeta):
 
     def get_has_side_effects(self):
         return self.side_effects
+
+    def is_deprecated(self):
+        return self.deprecated
 
 
 # pylint: disable=abstract-method

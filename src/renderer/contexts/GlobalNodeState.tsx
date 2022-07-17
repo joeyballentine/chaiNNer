@@ -390,6 +390,22 @@ export const GlobalProvider = memo(
                             'The file you are trying to open has been modified outside of chaiNNer. The modifications may cause chaiNNer to behave incorrectly or in unexpected ways. The file will now be loaded with the modifications.',
                     });
                 }
+                const deprecatedNodes = [...new Set(validNodes.map((n) => n.data.schemaId))].filter(
+                    (id) => schemata.get(id).deprecated
+                );
+                if (deprecatedNodes.length > 0) {
+                    const list = deprecatedNodes
+                        .map((id) => {
+                            const schema = schemata.get(id);
+                            return `- ${schema.category} > ${schema.name}`;
+                        })
+                        .join('\n');
+                    sendAlert({
+                        type: AlertType.WARN,
+                        title: 'File contains deprecated nodes',
+                        message: `This file contains the following deprecated node(s):\n\n${list}\n\nThis chain will still work right now, but these nodes will stop working in future versions of Chainner.`,
+                    });
+                }
                 changeNodes(validNodes);
                 changeEdges(validEdges);
                 if (loadPosition) {

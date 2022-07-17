@@ -75,6 +75,7 @@ export interface NodeSchema {
     readonly defaultNodes?: DefaultNode[];
     readonly schemaId: SchemaId;
     readonly hasSideEffects: boolean;
+    readonly deprecated: boolean;
 }
 
 export interface DefaultNode {
