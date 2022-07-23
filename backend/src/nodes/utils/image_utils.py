@@ -247,6 +247,6 @@ def preview_encode(img: np.ndarray, target_size: int = 512) -> str:
         f = max(w / target_size, h / target_size)
         img = cv2.resize(img, (int(w / f), int(h / f)), interpolation=cv2.INTER_AREA)
 
-    _, encoded_img = cv2.imencode(".png", (img * 255).astype("uint8"))  # type: ignore
+    _, encoded_img = cv2.imencode(".webp", (img * 255).astype("uint8"))  # type: ignore
     base64_img = base64.b64encode(encoded_img).decode("utf8")
-    return f"data:image/png;base64,{base64_img}"
+    return f"data:image/webp;base64,{base64_img}"
