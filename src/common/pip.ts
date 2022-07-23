@@ -2,6 +2,7 @@
 import { spawn } from 'child_process';
 import log from 'electron-log';
 import { Dependency } from './dependencies';
+import { sanitizedEnv } from './env';
 import { pipInstallWithProgress } from './pipInstallWithProgress';
 import { getPythonInfo } from './python';
 import { noop } from './util';
@@ -23,7 +24,9 @@ export const runPip = async (args: readonly string[], onStdio: OnStdio = {}): Pr
         log.info(`Python executable: ${python}`);
         log.info(`Running pip command: ${args.slice(1).join(' ')}`);
 
-        const child = spawn(python, args);
+        const child = spawn(python, args, {
+            env: sanitizedEnv,
+        });
 
         let stdout = '';
 

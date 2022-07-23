@@ -12,6 +12,7 @@ import semver from 'semver';
 import util from 'util';
 import { PythonInfo, WindowSize } from '../common/common-types';
 import { requiredDependencies } from '../common/dependencies';
+import { sanitizedEnv } from '../common/env';
 import { runPipInstall, runPipList } from '../common/pip';
 import { getPythonInfo, setPythonInfo } from '../common/python';
 import { BrowserWindowWithSafeIpc, ipcMain } from '../common/safeIpc';
@@ -391,7 +392,9 @@ const spawnBackend = async (port: number) => {
         const backendPath = app.isPackaged
             ? path.join(process.resourcesPath, 'src', 'run.py')
             : './backend/src/run.py';
-        const backend = spawn((await getPythonInfo()).python, [backendPath, String(port)]);
+        const backend = spawn((await getPythonInfo()).python, [backendPath, String(port)], {
+            env: sanitizedEnv,
+        });
         backend.stdout.on('data', (data) => {
             const dataString = String(data);
             // Remove unneeded timestamp

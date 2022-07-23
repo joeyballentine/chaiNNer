@@ -7,6 +7,7 @@ import os from 'os';
 import path from 'path';
 import { URL } from 'url';
 import { PyPiPackage } from './dependencies';
+import { sanitizedEnv } from './env';
 import { noop } from './util';
 
 export interface OnStdio {
@@ -55,12 +56,11 @@ const downloadWheelAndInstall = async (
             downloader.download().then(() => {
                 onProgress?.(98);
                 onStdout('Installing package from whl...\n');
-                const installProcess = spawn(pythonPath, [
-                    '-m',
-                    'pip',
-                    'install',
-                    path.join(tempDir, fileName),
-                ]);
+                const installProcess = spawn(
+                    pythonPath,
+                    ['-m', 'pip', 'install', path.join(tempDir, fileName)],
+                    { env: sanitizedEnv }
+                );
                 installProcess.stdout.on('data', (data) => {
                     onStdout(String(data));
                 });
