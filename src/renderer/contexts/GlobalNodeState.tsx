@@ -22,6 +22,7 @@ import {
     IteratorSize,
     Mutable,
     NodeData,
+    OutputData,
     OutputId,
     SchemaId,
     Size,
@@ -35,6 +36,7 @@ import { Expression } from '../../common/types/expression';
 import { FunctionDefinition } from '../../common/types/function';
 import { Type } from '../../common/types/types';
 import {
+    EMPTY_MAP,
     EMPTY_SET,
     createUniqueId,
     deepCopy,
@@ -81,9 +83,15 @@ interface GlobalVolatile {
     effectivelyDisabledNodes: ReadonlySet<string>;
     zoom: number;
     hoveredNode: string | null | undefined;
+    inputDataChanges: ChangeCounter;
+    lastInputDataUpdatedId: string | undefined;
     useConnectingFrom: readonly [
         OnConnectStartParams | null,
         SetState<OnConnectStartParams | null>
+    ];
+    useOutputDataMap: readonly [
+        ReadonlyMap<string, OutputData>,
+        SetState<ReadonlyMap<string, OutputData>>
     ];
 }
 interface Global {
@@ -226,6 +234,9 @@ export const GlobalProvider = memo(
             }, 100);
             return () => clearTimeout(timerId);
         }, [nodeChanges, edgeChanges, manualOutputTypes, functionDefinitions]);
+
+        const [outputDataMap, setOutputDataMap] =
+            useState<ReadonlyMap<string, OutputData>>(EMPTY_MAP);
 
         // Cache node state to avoid clearing state when refreshing
         useEffect(() => {
@@ -661,6 +672,16 @@ export const GlobalProvider = memo(
             [getNode, getNodes, getEdges, typeState]
         );
 
+        const [inputDataChanges, addInputDataChangesCounter] = useChangeCounter();
+        const [lastInputDataUpdatedId, setLastInputDataUpdatedId] = useState<string | undefined>();
+        const addInputDataChanges = useCallback(
+            (id: string) => {
+                addInputDataChangesCounter();
+                setLastInputDataUpdatedId(id);
+            },
+            [addInputDataChangesCounter, setLastInputDataUpdatedId]
+        );
+
         const useInputData = useCallback(
             // eslint-disable-next-line prefer-arrow-functions/prefer-arrow-functions, func-names
             function <T extends NonNullable<InputValue>>(
@@ -683,11 +704,12 @@ export const GlobalProvider = memo(
                         };
                         return nodeCopy;
                     });
+                    addInputDataChanges(id);
                 };
                 const resetInputData = () => setInputData(undefined);
                 return [currentInput, setInputData, resetInputData] as const;
             },
-            [modifyNode, schemata]
+            [modifyNode, schemata, addInputDataChanges]
         );
 
         const useInputSize = useCallback(
@@ -900,8 +922,16 @@ export const GlobalProvider = memo(
                     newNode.data.inputData = schemata.getDefaultInput(old.data.schemaId);
                     return newNode;
                 });
+                if (outputDataMap.get(id)) {
+                    setOutputDataMap((prev) => {
+                        const tempPrev = prev as Map<string, OutputData>;
+                        tempPrev.delete(id);
+                        return new Map([...(tempPrev as ReadonlyMap<string, OutputData>)]);
+                    });
+                }
+                addInputDataChanges(id);
             },
-            [modifyNode]
+            [modifyNode, addInputDataChanges, outputDataMap, setOutputDataMap]
         );
 
         const setNodeDisabled = useCallback(
@@ -952,7 +982,10 @@ export const GlobalProvider = memo(
             isValidConnection,
             zoom,
             hoveredNode,
+            inputDataChanges,
+            lastInputDataUpdatedId,
             useConnectingFrom: useMemoArray([connectingFrom, setConnectingFrom] as const),
+            useOutputDataMap: useMemoArray([outputDataMap, setOutputDataMap] as const),
         });
 
         const globalValue = useMemoObject<Global>({

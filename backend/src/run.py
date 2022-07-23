@@ -7,6 +7,7 @@ import platform
 import sys
 import traceback
 from json import dumps as stringify
+from typing import Any, Dict
 
 # pylint: disable=unused-import
 import cv2
@@ -146,7 +147,9 @@ async def run(request: Request):
             os.environ["device"] = "cpu" if full_data["isCpu"] else "cuda"
             os.environ["isFp16"] = str(full_data["isFp16"])
             logger.info(f"Using device: {os.environ['device']}")
-            executor = Executor(nodes_list, app.loop, queue, app.ctx.cache.copy())
+            executor = Executor(
+                nodes_list, app.loop, queue, request.app.ctx.cache.copy()
+            )
             request.app.ctx.executor = executor
             await executor.run()
         if not executor.paused:
@@ -190,11 +193,45 @@ async def run_individual(request: Request):
         logger.info(f"Using device: {os.environ['device']}")
         # Create node based on given category/name information
         node_instance = NodeFactory.create_node(full_data["schemaId"])
+
+        # Enforce that all inputs match the expected input schema
+        enforced_inputs = []
+        if node_instance.type == "iteratorHelper":
+            enforced_inputs = full_data["inputs"]
+        else:
+            node_inputs = node_instance.get_inputs(with_implicit_ids=True)
+            for idx, node_input in enumerate(full_data["inputs"]):
+                # TODO: remove this when all the inputs are transitioned to classes
+                if isinstance(node_inputs[idx], dict):
+                    enforced_inputs.append(node_input)
+                else:
+                    enforced_inputs.append(node_inputs[idx].enforce_(node_input))
+
         # Run the node and pass in inputs as args
         run_func = functools.partial(node_instance.run, *full_data["inputs"])
         output = await app.loop.run_in_executor(None, run_func)
+
+        # Broadcast the output from the individual run
+        broadcast_data: Dict[int, Any] = dict()
+        node_outputs = node_instance.get_outputs(with_implicit_ids=True)
+        if len(node_outputs) > 0:
+            output_idxable = [output] if len(node_outputs) == 1 else output
+            for idx, node_output in enumerate(node_outputs):
+                try:
+                    output_id = node_output.id if node_output.id is not None else idx
+                    broadcast_data[output_id] = node_output.get_broadcast_data(
+                        output_idxable[idx]
+                    )
+                except Exception as error:
+                    logger.error(f"Error broadcasting output: {error}")
+            await request.app.ctx.queue.put(
+                {
+                    "event": "node-output-data",
+                    "data": {"nodeId": full_data["id"], "data": broadcast_data},
+                }
+            )
         # Cache the output of the node
-        app.ctx.cache[full_data["id"]] = output
+        request.app.ctx.cache[full_data["id"]] = output
         extra_data = node_instance.get_extra_data()
         del node_instance, run_func
         return json({"success": True, "data": extra_data})

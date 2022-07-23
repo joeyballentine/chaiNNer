@@ -1,14 +1,32 @@
 import { Center, Flex, Spacer, Text } from '@chakra-ui/react';
-import { memo } from 'react';
-import { useContextSelector } from 'use-context-selector';
-import { GlobalVolatileContext } from '../../contexts/GlobalNodeState';
+import { memo, useEffect } from 'react';
+import { useContext, useContextSelector } from 'use-context-selector';
+import { StringLiteralType } from '../../../common/types/types';
+import { isStartingNode } from '../../../common/util';
+import { GlobalContext, GlobalVolatileContext } from '../../contexts/GlobalNodeState';
 import { TypeTag } from '../TypeTag';
 import { OutputProps } from './props';
 
-export const GenericOutput = memo(({ label, id, outputId }: OutputProps) => {
+export const TextOutput = memo(({ label, id, outputId, schemaId, useOutputData }: OutputProps) => {
     const type = useContextSelector(GlobalVolatileContext, (c) =>
         c.typeState.functions.get(id)?.outputs.get(outputId)
     );
+
+    const { setManualOutputType, schemata } = useContext(GlobalContext);
+
+    const schema = schemata.get(schemaId);
+
+    const value = useOutputData(outputId) as string;
+
+    useEffect(() => {
+        if (isStartingNode(schema)) {
+            if (value) {
+                setManualOutputType(id, outputId, new StringLiteralType(value));
+            } else {
+                setManualOutputType(id, outputId, undefined);
+            }
+        }
+    }, [id, schemaId, value]);
 
     return (
         <Flex

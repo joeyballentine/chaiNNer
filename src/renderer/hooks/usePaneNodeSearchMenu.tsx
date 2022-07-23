@@ -190,7 +190,7 @@ const Menu = memo(({ onSelect, schemata, favorites }: MenuProps) => {
 const getFirstPossibleInput = (fn: FunctionDefinition, type: Type): InputId | undefined =>
     fn.schema.inputs.find((i) => i.hasHandle && fn.canAssignInput(i.id, type))?.id;
 const getFirstPossibleOutput = (fn: FunctionDefinition, type: Type): OutputId | undefined =>
-    fn.schema.outputs.find((o) => fn.canAssignOutput(o.id, type))?.id;
+    fn.schema.outputs.find((o) => o.hasHandle && fn.canAssignOutput(o.id, type))?.id;
 
 const canConnectWith = (
     connectingFrom: OnConnectStartParams,

@@ -2,7 +2,7 @@ import { constants } from 'fs';
 import fs from 'fs/promises';
 import { LocalStorage } from 'node-localstorage';
 import { v4 as uuid4, v5 as uuid5 } from 'uuid';
-import type { InputId, OutputId } from './common-types';
+import type { InputId, NodeSchema, OutputId } from './common-types';
 
 export const EMPTY_ARRAY: readonly never[] = [];
 export const EMPTY_SET: ReadonlySet<never> = new Set<never>();
@@ -174,4 +174,8 @@ export const topologicalSort = <T>(
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (cyclic) return undefined;
     return result.reverse();
+};
+
+export const isStartingNode = (schema: NodeSchema) => {
+    return !schema.inputs.some((i) => i.hasHandle);
 };

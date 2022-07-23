@@ -37,7 +37,7 @@ class ImReadNode(NodeBase):
         self.description = "Load image from file."
         self.inputs = [ImageFileInput()]
         self.outputs = [
-            ImageOutput(),
+            LargeImageOutput(),
             DirectoryOutput(),
             TextOutput("Image Name"),
         ]
@@ -47,23 +47,6 @@ class ImReadNode(NodeBase):
         self.icon = "BsFillImageFill"
         self.sub = "Input & Output"
         self.result = None
-
-    def get_extra_data(self) -> Dict:
-        assert self.result is not None
-
-        img, dirname, basename = self.result
-        h, w, c = get_h_w_c(img)
-
-        base64_img = preview_encode(img)
-
-        return {
-            "image": base64_img,
-            "height": h,
-            "width": w,
-            "channels": c,
-            "directory": dirname,
-            "name": basename,
-        }
 
     def run(self, path: str) -> Tuple[np.ndarray, str, str]:
         """Reads an image from the specified path and return it as a numpy array"""
@@ -169,7 +152,7 @@ class ImOpenNode(NodeBase):
         self.inputs = [ImageInput()]
         self.outputs = []
         self.category = IMAGE
-        self.name = "Preview Image"
+        self.name = "View Image (external)"
         self.icon = "BsEyeFill"
         self.sub = "Input & Output"
 
@@ -197,3 +180,23 @@ class ImOpenNode(NodeBase):
                 os.startfile(temp_save_dir)  # type: ignore
             else:  # linux variants
                 subprocess.call(("xdg-open", temp_save_dir))  # type: ignore
+
+
+@NodeFactory.register("chainner:image:view")
+class ImViewNode(NodeBase):
+    def __init__(self):
+        super().__init__()
+        self.description = "See an inline preview of the image in the editor."
+        self.inputs = [ImageInput()]
+        self.outputs = [
+            LargeImageOutput("Preview", image_type="Input0", has_handle=False)
+        ]
+        self.category = IMAGE
+        self.name = "View Image"
+        self.icon = "BsEyeFill"
+        self.sub = "Input & Output"
+
+        self.side_effects = True
+
+    def run(self, img: np.ndarray):
+        return img

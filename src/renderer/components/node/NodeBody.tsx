@@ -13,6 +13,7 @@ interface NodeBodyProps {
     outputs: readonly Output[];
     accentColor: string;
     schemaId: SchemaId;
+    animated?: boolean;
 }
 
 export const NodeBody = memo(
@@ -25,6 +26,7 @@ export const NodeBody = memo(
         isLocked,
         schemaId,
         accentColor,
+        animated = false,
     }: NodeBodyProps) => {
         return (
             <>
@@ -65,6 +67,7 @@ export const NodeBody = memo(
                     </Center>
                 )}
                 <NodeOutputs
+                    animated={animated}
                     id={id}
                     outputs={outputs}
                     schemaId={schemaId}

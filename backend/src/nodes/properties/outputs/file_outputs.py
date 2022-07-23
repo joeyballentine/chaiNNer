@@ -6,8 +6,13 @@ from .. import expression
 class FileOutput(BaseOutput):
     """Output for saving a local file"""
 
-    def __init__(self, file_type: expression.ExpressionJson, label: str):
-        super().__init__(file_type, label)
+    def __init__(
+        self, file_type: expression.ExpressionJson, label: str, kind: str = "generic"
+    ):
+        super().__init__(file_type, label, kind=kind)
+
+    def get_broadcast_data(self, value: str):
+        return value
 
 
 def ImageFileOutput() -> FileOutput:
@@ -17,7 +22,7 @@ def ImageFileOutput() -> FileOutput:
 
 def DirectoryOutput() -> FileOutput:
     """Output for saving to a directory"""
-    return FileOutput("Directory", "Image Directory")
+    return FileOutput("Directory", "Image Directory", kind="directory")
 
 
 def OnnxFileOutput() -> FileOutput:

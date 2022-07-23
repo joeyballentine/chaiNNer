@@ -181,7 +181,8 @@ class Executor:
             output = await self.loop.run_in_executor(None, run_func)
             node_outputs = node_instance.get_outputs()
             broadcast_data: Dict[int, Any] = dict()
-            if len(node_outputs) > 0:
+            # Only broadcast the output if the node has outputs and the output is not cached
+            if len(node_outputs) > 0 and self.output_cache.get(node_id, None) is None:
                 output_idxable = [output] if len(node_outputs) == 1 else output
                 for idx, node_output in enumerate(node_outputs):
                     try:

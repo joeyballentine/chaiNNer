@@ -23,7 +23,6 @@ import { GlobalVolatileContext } from '../../contexts/GlobalNodeState';
 import { getSingleFileWithExtension } from '../../helpers/dataTransfer';
 import { useContextMenu } from '../../hooks/useContextMenu';
 import { useLastDirectory } from '../../hooks/useLastDirectory';
-import { ImagePreview } from './previews/ImagePreview';
 import { TorchModelPreview } from './previews/TorchModelPreview';
 import { InputProps } from './props';
 
@@ -232,15 +231,6 @@ export const FileInput = memo(
                     </InputGroup>
                 </Tooltip>
                 <Box>
-                    {fileKind === 'image' && (
-                        <Box mt={2}>
-                            <ImagePreview
-                                id={id}
-                                path={filePath}
-                                schemaId={schemaId}
-                            />
-                        </Box>
-                    )}
                     {fileKind === 'pth' && (
                         <Box mt={2}>
                             <TorchModelPreview
