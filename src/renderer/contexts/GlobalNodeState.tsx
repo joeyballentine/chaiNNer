@@ -267,7 +267,10 @@ export const GlobalProvider = memo(
             }
         }, [edgeChanges, nodeChanges, getNodes, getEdges]);
 
-        const [savePath, setSavePathInternal] = useState<string | undefined>();
+        const [savePath, setSavePathInternal] = useSessionStorage<string | undefined>(
+            'save-path',
+            undefined
+        );
         const [openRecent, pushOpenPath, removeRecentPath] = useOpenRecent();
         const setSavePath = useCallback(
             (path: string | undefined) => {
