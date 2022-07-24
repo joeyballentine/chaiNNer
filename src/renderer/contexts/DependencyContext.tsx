@@ -237,7 +237,6 @@ export const DependencyProvider = memo(({ children }: React.PropsWithChildren<un
                                     w="full"
                                 >
                                     <Text
-                                        color={gpu.isNvidia ? 'inherit' : 'red.500'}
                                         flex="1"
                                         textAlign="left"
                                     >
