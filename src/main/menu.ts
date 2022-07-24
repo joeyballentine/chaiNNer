@@ -250,3 +250,131 @@ export const setMainMenu = ({ mainWindow, openRecentRev = [] }: MainMenuArgs) =>
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
 };
+
+export const setEmptyMenu = () => {
+    const template = [
+        ...(isMac ? [{ role: 'appMenu' }] : []),
+        {
+            label: 'File',
+            submenu: [
+                {
+                    label: 'New',
+                    enabled: false,
+                },
+                {
+                    label: 'Open...',
+                    enabled: false,
+                },
+                {
+                    label: 'Open Recent',
+                    enabled: false,
+                },
+                { type: 'separator' },
+                {
+                    label: 'Save',
+                    enabled: false,
+                },
+                {
+                    label: 'Save As...',
+                    enabled: false,
+                },
+                { type: 'separator' },
+                isMac ? { role: 'close' } : { role: 'quit' },
+            ],
+        },
+        {
+            label: 'Edit',
+            submenu: [
+                {
+                    label: 'Undo',
+                    enabled: false,
+                },
+                {
+                    label: 'Redo',
+                    enabled: false,
+                },
+                { type: 'separator' },
+                {
+                    label: 'Cut',
+                    enabled: false,
+                },
+                {
+                    label: 'Copy',
+                    enabled: false,
+                },
+                {
+                    label: 'Paste',
+                    enabled: false,
+                },
+            ],
+        },
+        {
+            label: 'View',
+            submenu: [
+                { role: 'reload', enabled: false },
+                { role: 'forceReload', enabled: false },
+                { type: 'separator' },
+                { role: 'resetZoom', enabled: false },
+                { role: 'zoomIn', enabled: false },
+                { role: 'zoomOut', enabled: false },
+                { type: 'separator' },
+                { role: 'togglefullscreen', enabled: false },
+            ],
+        },
+        {
+            label: 'Window',
+            submenu: [
+                { role: 'minimize', enabled: false },
+                { role: 'zoom', enabled: false },
+                ...(isMac
+                    ? [
+                          { type: 'separator' },
+                          { role: 'front', enabled: false },
+                          { type: 'separator' },
+                          { role: 'window', enabled: false },
+                      ]
+                    : [{ role: 'close', enabled: false }]),
+                ...(!app.isPackaged ? [{ type: 'separator' }, { role: 'toggleDevTools' }] : []),
+            ],
+        },
+        {
+            role: 'help',
+            submenu: [
+                {
+                    label: 'View README',
+                    click: async () => {
+                        await shell.openExternal(
+                            'https://github.com/joeyballentine/chaiNNer/blob/main/README.md'
+                        );
+                    },
+                },
+                {
+                    label: 'Open logs folder',
+                    click: async () => {
+                        await shell.openPath(app.getPath('logs'));
+                    },
+                },
+                {
+                    label: 'Get ESRGAN models',
+                    click: async () => {
+                        await shell.openExternal('https://upscale.wiki/wiki/Model_Database');
+                    },
+                },
+                {
+                    label: 'Convert ONNX models to NCNN',
+                    click: async () => {
+                        await shell.openExternal('https://convertmodel.com/');
+                    },
+                },
+                { type: 'separator' },
+                {
+                    label: 'Collect system information',
+                    enabled: false,
+                },
+            ],
+        },
+    ] as MenuItemConstructorOptions[];
+
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
+};

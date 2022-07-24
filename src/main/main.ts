@@ -18,7 +18,7 @@ import { BrowserWindowWithSafeIpc, ipcMain } from '../common/safeIpc';
 import { SaveFile, openSaveFile } from '../common/SaveFile';
 import { checkFileExists } from '../common/util';
 import { getArguments } from './arguments';
-import { setMainMenu } from './menu';
+import { setEmptyMenu, setMainMenu } from './menu';
 import { createNvidiaSmiVRamChecker, getNvidiaGpuName, getNvidiaSmi } from './nvidiaSmi';
 import { downloadPython, extractPython } from './setupIntegratedPython';
 import { getGpuInfo } from './systemInfo';
@@ -174,6 +174,14 @@ const registerEventHandlers = () => {
             powerSaveBlocker.stop(blockerId);
             blockerId = undefined;
         }
+    });
+
+    ipcMain.on('disable-menu', () => {
+        setEmptyMenu();
+    });
+
+    ipcMain.on('enable-menu', () => {
+        setMainMenu({ mainWindow });
     });
 };
 

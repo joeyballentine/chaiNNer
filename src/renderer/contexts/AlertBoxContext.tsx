@@ -15,6 +15,7 @@ import {
 import { app, clipboard } from 'electron';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createContext, useContext } from 'use-context-selector';
+import { ipcRenderer } from '../../common/safeIpc';
 import { assertNever, noop } from '../../common/util';
 import { useMemoObject } from '../hooks/useMemo';
 import { ContextMenuContext } from './ContextMenuContext';
@@ -161,6 +162,7 @@ export const AlertBoxProvider = memo(({ children }: React.PropsWithChildren<unkn
     );
     const sendAlert = useCallback<AlertBox['sendAlert']>(
         (type: AlertType | AlertOptions, title?: string | null, message?: string) => {
+            ipcRenderer.send('disable-menu');
             if (typeof type === 'object') {
                 // eslint-disable-next-line @typescript-eslint/no-floating-promises
                 showAlert(type);
@@ -185,7 +187,10 @@ export const AlertBoxProvider = memo(({ children }: React.PropsWithChildren<unkn
         (button: number) => {
             current?.resolve(button);
             setQueue((q) => q.slice(1));
-            if (isLast) onDisclosureClose();
+            if (isLast) {
+                onDisclosureClose();
+                ipcRenderer.send('enable-menu');
+            }
         },
         [current, isLast, setQueue, onDisclosureClose]
     );

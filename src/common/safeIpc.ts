@@ -74,6 +74,8 @@ export interface SendChannels {
     'window-maximized-change': SendChannelInfo<[maximized: boolean]>;
     'window-blur': SendChannelInfo;
     'show-collected-information': SendChannelInfo<[info: Record<string, unknown>]>;
+    'disable-menu': SendChannelInfo;
+    'enable-menu': SendChannelInfo;
 
     // history
     'history-undo': SendChannelInfo;
